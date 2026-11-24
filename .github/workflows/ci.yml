@@ -1,0 +1,85 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check . && ruff format --check .
+      - run: pytest -q
+
+  demo:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: pip install ".[train]"
+      - name: Offline demo (synthetic data)
+        run: |
+          oncoai demo | tee demo.txt
+          { echo '### oncoai demo (synthetic data)'; echo '```'; cat demo.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  public-data:
+    # Fetches four small public studies, checks their SHA-256 and trains on them.
+    # Depends on an external host, so it does not block the build.
+    needs: test
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: pip install ".[train]"
+      - name: Fetch, verify, train
+        run: |
+          oncoai fetch --studies acc,kich,tgct,uvm --dest data/pancan
+          oncoai train --data data/pancan --studies acc,kich,tgct,uvm --out model.json --report report.json | tee train.txt
+          oncoai cohort uvm --data data/pancan --top 4 --pairs 3 | tee -a train.txt
+          { echo '### Public-data smoke run (4 TCGA studies)'; echo '```'; cat train.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  container:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: docker build -t oncoai:ci .
+      - name: Start read-only, wait for readiness, exercise roles and analysis
+        run: |
+          V="v_$(openssl rand -hex 16)"; A="a_$(openssl rand -hex 16)"
+          docker run -d --name onc -p 8080:8080 -e ONCOAI_API_KEYS="viewer:$V,analyst:$A" --read-only --tmpfs /tmp oncoai:ci
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:8080/readyz && break; sleep 1; done
+          curl -fsS -H "x-api-key: $V" http://127.0.0.1:8080/v1/model | grep -q '"synthetic":true'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "x-api-key: $V" -H 'content-type: text/plain' -d x http://127.0.0.1:8080/v1/analyse)" = "403"
+          curl -fsS -H "x-api-key: $A" http://127.0.0.1:8080/v1/example > example.maf
+          curl -fsS -H "x-api-key: $A" -H 'content-type: text/tab-separated-values' --data-binary @example.maf http://127.0.0.1:8080/v1/analyse | grep -q 'Research use only'
+          test "$(docker inspect -f '{{.Config.User}}' oncoai:ci)" = "10001"
+      - if: always()
+        run: docker logs onc || true
