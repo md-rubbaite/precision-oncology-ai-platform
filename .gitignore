@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.env
+# public data is fetched, never committed (see docs/data/data-governance.md)
+data/
+models/
+model.json
+report.json
+*.maf
