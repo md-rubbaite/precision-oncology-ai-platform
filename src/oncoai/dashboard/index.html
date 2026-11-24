@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tumour Profile Research Console</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#0A1022;--panel:#111A33;--line:#1E2A4A;--text:#E2E8F0;--muted:#94A3B8;--gold:#F5C451;--green:#34D399;--amber:#FACC15;--red:#EF4444;--blue:#7DA2D6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,"Segoe UI",Helvetica,Arial,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:14px 24px;border-bottom:1px solid var(--line)}
+.brand small{display:block;color:var(--gold);font-size:10px;font-weight:700;letter-spacing:1.2px}.brand b{font-size:18px}.brand b span{color:var(--gold)}
+header .sp{flex:1}input,textarea,button{font:inherit;color:var(--text);background:#0D1530;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+button{cursor:pointer}button.gold{background:var(--gold);color:#1A1405;border-color:var(--gold);font-weight:700}button:disabled{opacity:.5;cursor:default}
+.notice{margin:14px 24px 0;padding:8px 14px;border:1px solid #6B4E16;background:#2A1F08;color:#FCD34D;border-radius:10px;font-size:13px}
+main{padding:16px 24px 24px;display:grid;gap:16px}
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px}
+.card .k{color:var(--muted);font-size:11px;letter-spacing:.8px;text-transform:uppercase}.card .v{font-size:24px;font-weight:700}.card .s{color:var(--muted);font-size:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}.panel h2{margin:0 0 10px;font-size:13px;letter-spacing:.8px;text-transform:uppercase;color:var(--gold)}
+.cols{display:grid;grid-template-columns:1fr 1.25fr;gap:16px;align-items:start}.col{display:grid;gap:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{color:var(--muted);font-weight:600;text-align:left;font-size:11px;letter-spacing:.6px;text-transform:uppercase;padding:6px 4px;border-bottom:1px solid var(--line)}
+td{padding:6px 4px;border-bottom:1px solid #16213F}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr.pick{cursor:pointer}tbody tr.pick:hover{background:#0F1938}tbody tr.sel{background:#1B2A57;box-shadow:inset 3px 0 0 var(--gold)}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700}.ok{background:#064E3B;color:var(--green)}.warn{background:#451A03;color:#FCD34D}.info{background:#1E293B;color:#CBD5E1}
+textarea{width:100%;height:120px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:8px}.row label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:3px}
+.muted{color:var(--muted)}.small{font-size:12px}#err{color:#FDA4AF;font-size:12px}
+.call{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}.call .big{font-size:26px;font-weight:800}.call .big.unc{color:var(--amber)}
+.feat{display:flex;flex-wrap:wrap;gap:6px}.feat span{background:#0D1530;border:1px solid var(--line);border-radius:999px;padding:2px 9px;font-size:12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:1100px){.cards{grid-template-columns:repeat(2,1fr)}.cols,.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><small>PRECISION ONCOLOGY · RESEARCH</small><b>Tumour Profile <span>Research</span> Console</b></div>
+  <div class="sp"></div>
+  <span id="err"></span>
+  <input id="key" type="password" placeholder="API key" autocomplete="off" size="34">
+  <button class="gold" id="connect">Connect</button>
+  <span id="who" class="muted"></span>
+</header>
+<div class="notice"><b>Research use only.</b> Not for diagnosis, prognosis or treatment decisions. Upload de-identified data only; files are analysed in memory and not stored.</div>
+<main>
+  <div class="cards">
+    <div class="card"><div class="k">Model</div><div class="v" id="c-model">–</div><div class="s" id="c-src">connect to load</div></div>
+    <div class="card"><div class="k">Cross-validated accuracy</div><div class="v" id="c-acc">–</div><div class="s" id="c-bal"></div></div>
+    <div class="card"><div class="k">Calibration error</div><div class="v" id="c-ece">–</div><div class="s">expected calibration error (lower is better)</div></div>
+    <div class="card"><div class="k">Abstains below</div><div class="v" id="c-thr">–</div><div class="s" id="c-cov"></div></div>
+    <div class="card"><div class="k">Samples in this file</div><div class="v" id="c-n">–</div><div class="s" id="c-qc"></div></div>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <div class="panel"><h2>Mutation file (MAF)</h2>
+        <textarea id="maf" spellcheck="false" placeholder="Paste a MAF (tab-separated, with header) or choose a file. Required columns: Hugo_Symbol, Tumor_Sample_Barcode, Variant_Classification, Variant_Type, Reference_Allele, Tumor_Seq_Allele2."></textarea>
+        <div class="row">
+          <label>File<input id="file" type="file" accept=".maf,.txt,.tsv"></label>
+          <label>Min VAF<input id="vaf" type="number" min="0" max="0.99" step="0.01" value="0" style="width:80px"></label>
+          <label>Min alt reads<input id="alt" type="number" min="0" max="1000" value="0" style="width:80px"></label>
+          <button id="example">Example</button>
+          <button class="gold" id="go">Analyse</button>
+        </div>
+        <div id="qc" class="small muted" style="margin-top:8px"></div>
+      </div>
+      <div class="panel"><h2>Samples</h2>
+        <table><thead><tr><th>Sample</th><th class="n">TMB /Mb</th><th class="n">Mutations</th><th>Most likely</th><th class="n">p</th><th>Call</th></tr></thead><tbody id="samples"><tr><td colspan="6" class="muted">No file analysed yet.</td></tr></tbody></table>
+      </div>
+      <div class="panel"><h2>Model card</h2><div id="card" class="small muted">Connect to see how the model was evaluated.</div></div>
+    </div>
+    <div class="col">
+      <div class="panel"><h2>Tumour-type probabilities</h2>
+        <div class="call"><span class="big" id="call">–</span><span class="muted" id="callsub"></span></div>
+        <svg id="probs" viewBox="0 0 640 300" width="100%" role="img" aria-label="Probability for each tumour type"></svg>
+        <div class="small muted">Gold bar: most likely type. Dashed line: abstention threshold. Below it the model answers "uncertain".</div>
+      </div>
+      <div class="panel"><h2>Why this type</h2><div class="feat" id="reasons"><span class="muted" style="border:0">–</span></div>
+        <div class="small muted" style="margin-top:8px">Largest contributions toward the most likely type (coefficient × value, relative to the class average). These explain the model, not the biology.</div>
+      </div>
+      <div class="two">
+        <div class="panel"><h2>Substitution profile</h2><svg id="sbs" viewBox="0 0 300 170" width="100%" role="img" aria-label="Single-base substitution classes"></svg></div>
+        <div class="panel"><h2>TMB vs training cohort</h2><svg id="tmb" viewBox="0 0 300 170" width="100%" role="img" aria-label="Tumour mutational burden compared with each training group"></svg></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const NS="http://www.w3.org/2000/svg";
+let KEY="",RESULT=null,SEL=0,CARD=null;
+function el(tag,attrs,text){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(text!==undefined)e.textContent=text;return e}
+function clear(n){while(n.firstChild)n.removeChild(n.firstChild)}
+function td(text,cls){const c=document.createElement("td");c.textContent=text;if(cls)c.className=cls;return c}
+function pill(text,cls){const s=document.createElement("span");s.className="pill "+cls;s.textContent=text;return s}
+function err(m){$("err").textContent=m||""}
+async function api(path,opts={}){
+  opts.headers=Object.assign({"x-api-key":KEY},opts.headers||{});
+  const r=await fetch(path,opts);
+  if(!r.ok){let d=r.status+"";try{d=(await r.json()).detail||d}catch(e){}throw new Error(d)}
+  const ct=r.headers.get("content-type")||"";return ct.includes("json")?r.json():r.text();
+}
+async function connect(){
+  KEY=$("key").value.trim();err();
+  try{const w=await api("/v1/whoami");$("who").textContent="role: "+w.role;CARD=await api("/v1/model");renderCard()}
+  catch(e){err(e.message);$("who").textContent=""}
+}
+function pct(v){return v==null?"–":(100*v).toFixed(1)+"%"}
+function renderCard(){
+  const c=CARD,cv=c.cross_validation||{},ab=c.abstention||{};
+  $("c-model").textContent=c.classes.length+" types";
+  $("c-src").textContent=c.synthetic?"synthetic demo model":((c.data_source.repository||"trained model")+" · "+(c.data_source.studies||[]).length+" studies");
+  $("c-acc").textContent=pct(cv.accuracy);$("c-bal").textContent="balanced "+pct(cv.balanced_accuracy)+" · top-3 "+pct(cv.top3_accuracy);
+  $("c-ece").textContent=cv.ece==null?"–":cv.ece.toFixed(3);
+  $("c-thr").textContent=c.abstain_below.toFixed(2);$("c-cov").textContent="answers "+pct(ab.out_of_fold_coverage)+", "+pct(ab.out_of_fold_accuracy_when_answered)+" correct";
+  const box=$("card");clear(box);
+  const t=document.createElement("table");const h=document.createElement("thead");const hr=document.createElement("tr");
+  for(const x of ["Type","Training samples","Recall","Precision"]){const th=document.createElement("th");th.textContent=x;if(x!=="Type")th.className="n";hr.appendChild(th)}
+  h.appendChild(hr);t.appendChild(h);const b=document.createElement("tbody");
+  for(const k of c.classes){const pc=(c.per_class||{})[k]||{};const tr=document.createElement("tr");
+    tr.append(td(k),td(String((c.training_labels||{})[k]??"–"),"n"),td(pct(pc.recall),"n"),td(pct(pc.precision),"n"));b.appendChild(tr)}
+  t.appendChild(b);box.appendChild(t);
+  const p=document.createElement("p");p.className="small muted";
+  p.textContent="Recall and precision from patient-grouped 5-fold cross-validation. "+(c.synthetic?"Invented data: these numbers say nothing about real tumours.":"Source: "+(c.data_source.repository||"")+" @ "+String(c.data_source.commit||"").slice(0,10)+".");
+  box.appendChild(p);
+}
+async function analyse(){
+  err();const text=$("maf").value;if(!text.trim()){err("Paste a MAF or choose a file first.");return}
+  $("go").disabled=true;
+  try{
+    const q="?min_vaf="+encodeURIComponent($("vaf").value||0)+"&min_alt_reads="+encodeURIComponent($("alt").value||0);
+    RESULT=await api("/v1/analyse"+q,{method:"POST",headers:{"content-type":"text/tab-separated-values"},body:text});SEL=0;renderResult();
+  }catch(e){err(e.message)}finally{$("go").disabled=false}
+}
+function renderResult(){
+  const r=RESULT,qc=r.qc;
+  $("c-n").textContent=r.samples.length;$("c-qc").textContent=qc.kept+" of "+qc.rows+" rows kept";
+  const parts=[qc.rows+" rows, "+qc.kept+" kept, "+qc.samples+" samples."];
+  for(const k in qc.rejected)parts.push("Rejected "+qc.rejected[k]+": "+k+".");
+  for(const w of qc.warnings)parts.push("Note: "+w+".");
+  $("qc").textContent=parts.join(" ");
+  const tb=$("samples");clear(tb);
+  r.samples.forEach((s,i)=>{const p=s.profile,d=s.prediction,tr=document.createElement("tr");tr.className="pick"+(i===SEL?" sel":"");
+    const c=document.createElement("td");c.appendChild(d.abstained?pill("uncertain","warn"):pill("answered","ok"));
+    tr.append(td(p.sample),td(p.tmb_per_mb.toFixed(2),"n"),td(String(p.mutations),"n"),td(d.most_likely),td(d.confidence.toFixed(2),"n"),c);
+    tr.onclick=()=>{SEL=i;renderResult()};tb.appendChild(tr)});
+  if(!r.samples.length){tb.innerHTML='<tr><td colspan="6" class="muted">No usable mutations.</td></tr>';return}
+  renderSample(r.samples[SEL]);
+}
+function renderSample(s){
+  const d=s.prediction,p=s.profile;
+  $("call").textContent=d.abstained?"Uncertain":d.most_likely;$("call").className="big"+(d.abstained?" unc":"");
+  $("callsub").textContent=d.abstained?("most likely "+d.most_likely+" at p = "+d.confidence.toFixed(2)+", below "+d.abstain_below.toFixed(2)):("p = "+d.confidence.toFixed(2)+" · "+p.sample);
+  const svg=$("probs");clear(svg);const rows=d.probabilities.slice(0,10),h=28,x0=120,w=480;
+  rows.forEach((r,i)=>{const y=8+i*h;svg.appendChild(el("text",{x:x0-10,y:y+15,"text-anchor":"end",fill:"#E2E8F0","font-size":13},r.label));
+    svg.appendChild(el("rect",{x:x0,y:y+2,width:w,height:18,rx:4,fill:"#0D1530"}));
+    svg.appendChild(el("rect",{x:x0,y:y+2,width:Math.max(1,w*r.p),height:18,rx:4,fill:i===0?"#F5C451":"#3B5488"}));
+    svg.appendChild(el("text",{x:x0+Math.max(1,w*r.p)+6,y:y+16,fill:"#94A3B8","font-size":12},r.p.toFixed(2)))});
+  const tx=x0+w*d.abstain_below;svg.appendChild(el("line",{x1:tx,x2:tx,y1:4,y2:8+rows.length*h,stroke:"#FACC15","stroke-dasharray":"4 4"}));
+  svg.setAttribute("viewBox","0 0 640 "+(16+rows.length*h));
+  const rs=$("reasons");clear(rs);
+  if(!d.reasons.length){const sp=document.createElement("span");sp.textContent="No single feature stands out.";rs.appendChild(sp)}
+  for(const r of d.reasons){const sp=document.createElement("span");sp.textContent=label(r)+"  +"+r.contribution.toFixed(2);rs.appendChild(sp)}
+  drawSbs(p);drawTmb(p.tmb_per_mb,d.most_likely);
+}
+function label(r){
+  const f=r.feature,dir=r.direction?r.direction+" ":"";
+  if(f==="log2_tmb")return dir+"TMB than average";
+  if(f==="indel_fraction")return dir+"share of indels";
+  if(f.startsWith("sbs6:"))return dir+"share of "+f.slice(5);
+  if(f.startsWith("sbs96:"))return dir+"share of "+f.slice(6);
+  if(f.startsWith("gene:"))return f.slice(5)+" mutated";
+  if(f.startsWith("change:"))return f.slice(7);
+  return f;
+}
+function plural(n,w){return n+" "+w+(n===1?"":"s")}
+function drawSbs(p){
+  const svg=$("sbs");clear(svg);const keys=Object.keys(p.sbs6),cols=["#7DA2D6","#94A3B8","#F5C451","#C084FC","#34D399","#FB923C"];
+  const max=Math.max(0.01,...keys.map(k=>p.sbs6[k]));
+  keys.forEach((k,i)=>{const x=16+i*47,hh=120*p.sbs6[k]/max;svg.appendChild(el("rect",{x,y:136-hh,width:34,height:hh,rx:3,fill:cols[i]}));
+    svg.appendChild(el("text",{x:x+17,y:154,"text-anchor":"middle",fill:"#94A3B8","font-size":11},k));
+    svg.appendChild(el("text",{x:x+17,y:130-hh,"text-anchor":"middle",fill:"#E2E8F0","font-size":10},Math.round(100*p.sbs6[k])+"%"))});
+  svg.appendChild(el("text",{x:150,y:168,"text-anchor":"middle",fill:"#64748B","font-size":10},plural(p.snv,"SNV")+" · "+plural(p.indel,"indel")));
+}
+function drawTmb(v,top){
+  const svg=$("tmb");clear(svg);const ctx=RESULT.cohort_tmb||{},labels=Object.keys(ctx);
+  if(!labels.length){svg.appendChild(el("text",{x:150,y:85,"text-anchor":"middle",fill:"#94A3B8","font-size":12},"No cohort context in this model"));return}
+  const lo=0.01,hi=100,X=t=>70+210*(Math.log10(Math.max(lo,Math.min(hi,t)))-Math.log10(lo))/(Math.log10(hi)-Math.log10(lo));
+  const h=Math.min(14,140/labels.length);
+  labels.forEach((k,i)=>{const y=6+i*h,c=ctx[k];svg.appendChild(el("text",{x:64,y:y+h*0.75,"text-anchor":"end",fill:k===top?"#F5C451":"#94A3B8","font-size":Math.min(11,h)},k));
+    svg.appendChild(el("rect",{x:X(c.p10),y:y+h*0.25,width:Math.max(2,X(c.p90)-X(c.p10)),height:h*0.5,rx:2,fill:k===top?"#6B5520":"#26365E"}));
+    svg.appendChild(el("rect",{x:X(c.median)-1,y:y+h*0.15,width:2,height:h*0.7,fill:"#CBD5E1"}))});
+  const yb=8+labels.length*h;svg.appendChild(el("line",{x1:X(v),x2:X(v),y1:2,y2:yb,stroke:"#F5C451","stroke-width":2}));
+  for(const t of [0.1,1,10,100]){svg.appendChild(el("text",{x:X(t),y:yb+12,"text-anchor":"middle",fill:"#64748B","font-size":10},String(t)))}
+  svg.appendChild(el("text",{x:175,y:yb+26,"text-anchor":"middle",fill:"#64748B","font-size":10},"per Mb, log scale · bar p10–p90 · tick median"));
+  svg.setAttribute("viewBox","0 0 300 "+(yb+32));
+}
+$("connect").onclick=connect;$("key").addEventListener("keydown",e=>{if(e.key==="Enter")connect()});
+$("go").onclick=analyse;
+$("example").onclick=async()=>{err();try{$("maf").value=await api("/v1/example")}catch(e){err(e.message)}};
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>5*1024*1024){err("File larger than 5 MB.");return}const r=new FileReader();r.onload=()=>{$("maf").value=r.result};r.readAsText(f)};
+</script>
+</body>
+</html>

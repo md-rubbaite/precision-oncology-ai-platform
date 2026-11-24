@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, and cite cBioPortal, the MC3 call set and the TCGA studies you used."
+title: "Precision Oncology AI Platform"
+abstract: "Research platform for somatic mutation data: MAF checks, tumour mutational burden, substitution profiles, cohort statistics and a calibrated tumour-type classifier with abstention, evaluated with patient-grouped cross-validation on public TCGA data. Research use only."
+authors:
+  - family-names: "Hassain"
+    given-names: "Rubbaite T."
+version: 1.0.0
+date-released: 2026-11-24
+license: MIT
+repository-code: "https://github.com/md-rubbaite/precision-oncology-ai-platform"
+keywords: [cancer-genomics, bioinformatics, precision-oncology, machine-learning, tcga, tumor-mutational-burden]
