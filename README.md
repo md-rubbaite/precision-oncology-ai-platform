@@ -137,6 +137,8 @@ docs/             architecture, model card, validation, data governance, ADRs, t
 
 Rubbaite T. Hassain. Independent engineering work on public research data.
 
+Architecture, requirements and review by Rubbaite T. Hassain; implementation AI-assisted.
+
 ## License
 
 MIT
